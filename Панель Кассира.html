@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Панель Кассира - Приём Оплаты</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        * { -webkit-tap-highlight-color: transparent; user-select: none; }
+        input { user-select: text; }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans text-gray-800 h-screen flex flex-col overflow-hidden">
+
+    <!-- Верхняя шапка Кассы -->
+    <header class="bg-slate-900 text-white p-3.5 flex justify-between items-center shadow-lg flex-shrink-0">
+        <div class="flex items-center space-x-2.5">
+            <div class="w-9 h-9 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-extrabold text-lg shadow-md">
+                <i class="fa-solid fa-receipt"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-base leading-tight">Панель Кассира</h1>
+                <p class="text-[10px] text-emerald-400 font-medium">Режим расчета и оплаты</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-2">
+            <button onclick="openModal('shiftReportModal')" class="bg-slate-800 hover:bg-slate-700 text-gray-200 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-1.5 border border-slate-700">
+                <i class="fa-solid fa-chart-pie text-emerald-400"></i>
+                <span>Отчёт смены</span>
+            </button>
+            <button onclick="openModal('settingsModal')" class="p-2 rounded-xl bg-slate-800 text-gray-300 hover:text-white border border-slate-700">
+                <i class="fa-solid fa-gear"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Основной контент: Неоплаченные заказы -->
+    <main class="flex-1 overflow-hidden p-3 flex flex-col max-w-4xl mx-auto w-full">
+        <!-- Статус синхронизации и Фильтр -->
+        <div class="flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm border border-gray-200 mb-3 flex-shrink-0">
+            <div class="flex items-center space-x-2">
+                <span class="relative flex h-3 w-3">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                </span>
+                <span class="text-xs font-bold text-gray-700">Неоплаченные заказы (<span id="ordersCount">0</span>)</span>
+            </div>
+            <button onclick="loadOrders()" class="text-xs text-blue-600 hover:text-blue-700 font-bold flex items-center space-x-1">
+                <i class="fa-solid fa-rotate text-xs"></i>
+                <span>Обновить</span>
+            </button>
+        </div>
+
+        <!-- Сетка карточек заказов -->
+        <div class="flex-1 overflow-y-auto space-y-3 pr-1" id="ordersGrid">
+            <!-- Заказы загружаются динамически -->
+        </div>
+    </main>
+
+    <!-- Модальное окно: Расчёт и Оплата -->
+    <div id="paymentModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-md p-5 space-y-4 shadow-2xl overflow-y-auto max-h-[95vh]">
+            <div class="flex justify-between items-center border-b pb-2">
+                <div>
+                    <h3 class="font-bold text-lg text-gray-800" id="payModalTitle">Оплата заказа</h3>
+                    <div class="text-xs text-amber-600 font-semibold" id="payModalSubtitle">Столик №-</div>
+                </div>
+                <button onclick="closeModal('paymentModal')" class="text-gray-400 hover:text-gray-600">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Список товаров в чеке -->
+            <div class="bg-gray-50 p-3 rounded-2xl border space-y-1 text-xs" id="payModalItems">
+                <!-- Товары чека -->
+            </div>
+
+            <!-- Сумма к оплате -->
+            <div class="bg-blue-50 border border-blue-200 p-3.5 rounded-2xl flex justify-between items-center">
+                <span class="text-xs font-bold text-gray-600">К ОПЛАТЕ:</span>
+                <span id="payModalTotal" class="text-xl font-extrabold text-blue-600">0 UZS</span>
+            </div>
+
+            <!-- Выбор Способа Оплаты -->
+            <div>
+                <label class="block text-xs font-bold text-gray-700 mb-2">ВЫБЕРИТЕ СПОСОБ ОПЛАТЫ:</label>
+                <div class="grid grid-cols-3 gap-2">
+                    <button type="button" onclick="selectPayMethod('cash')" id="methodCash" class="pay-method-btn active bg-emerald-50 border-2 border-emerald-500 text-emerald-700 font-bold py-3 rounded-2xl text-xs flex flex-col items-center justify-center shadow-xs">
+                        <i class="fa-solid fa-money-bill-wave text-lg mb-1"></i>
+                        <span>Наличные</span>
+                    </button>
+                    <button type="button" onclick="selectPayMethod('card')" id="methodCard" class="pay-method-btn bg-gray-100 border-2 border-transparent text-gray-600 font-bold py-3 rounded-2xl text-xs flex flex-col items-center justify-center">
+                        <i class="fa-solid fa-credit-card text-lg mb-1"></i>
+                        <span>Карта</span>
+                    </button>
+                    <button type="button" onclick="selectPayMethod('transfer')" id="methodTransfer" class="pay-method-btn bg-gray-100 border-2 border-transparent text-gray-600 font-bold py-3 rounded-2xl text-xs flex flex-col items-center justify-center">
+                        <i class="fa-solid fa-mobile-screen-button text-lg mb-1"></i>
+                        <span>Перевод</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Поле для расчета сдачи (если наличные) -->
+            <div id="cashCalcBlock" class="space-y-2 bg-gray-50 p-3 rounded-2xl border">
+                <div class="flex justify-between items-center text-xs">
+                    <span class="font-semibold text-gray-600">Получено от клиента:</span>
+                    <input type="number" id="cashReceivedInput" oninput="calculateChange()" placeholder="Сумма" class="w-32 p-2 text-right bg-white border rounded-xl font-bold text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                </div>
+                <div class="flex justify-between items-center text-xs border-t pt-2">
+                    <span class="font-bold text-gray-700">Сдача клиенту:</span>
+                    <span id="cashChangeAmount" class="font-bold text-emerald-600 text-sm">0 UZS</span>
+                </div>
+            </div>
+
+            <!-- Кнопка подтверждения -->
+            <button onclick="confirmPayment()" id="confirmPayBtn" class="w-full bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white font-extrabold py-3.5 rounded-2xl shadow-lg transition flex justify-center items-center space-x-2 text-sm">
+                <i class="fa-solid fa-check-double text-base"></i>
+                <span>Подтвердить оплату и Чек</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Модальное окно: Настройки Кассового ТГ Бота -->
+    <div id="settingsModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-md p-5 space-y-4 shadow-2xl">
+            <div class="flex justify-between items-center border-b pb-2">
+                <h3 class="font-bold text-lg text-gray-800"><i class="fa-brands fa-telegram text-blue-500 mr-2"></i>Бот Кассы в Telegram</h3>
+                <button onclick="closeModal('settingsModal')" class="text-gray-400 hover:text-gray-600">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Название заведения:</label>
+                    <input type="text" id="storeName" placeholder="Кафе FastFood" class="w-full p-2.5 bg-gray-50 border rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">BOT TOKEN (Касса):</label>
+                    <input type="text" id="tgToken" placeholder="Токен бота чеков" class="w-full p-2.5 bg-gray-50 border rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">CHAT ID (Кассир / Группа):</label>
+                    <input type="text" id="tgChatId" placeholder="ID чата кассы" class="w-full p-2.5 bg-gray-50 border rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+            </div>
+
+            <div class="pt-2 flex space-x-2">
+                <button onclick="saveSettings()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-blue-700">
+                    Сохранить настройки
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно: Отчёт смены -->
+    <div id="shiftReportModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-md p-5 space-y-4 shadow-2xl">
+            <div class="flex justify-between items-center border-b pb-2">
+                <h3 class="font-bold text-lg text-gray-800"><i class="fa-solid fa-chart-line text-emerald-500 mr-2"></i>Отчёт за смену</h3>
+                <button onclick="closeModal('shiftReportModal')" class="text-gray-400 hover:text-gray-600">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-3" id="shiftStatsContent">
+                <!-- Статистика выводится скриптом -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast уведомления -->
+    <div id="toast" class="fixed top-5 right-5 z-50 transform translate-y-[-150%] transition-transform duration-300 bg-slate-800 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center space-x-3 border-l-4 border-emerald-500">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400"></i>
+        <span id="toastMessage" class="text-sm font-medium">Уведомление</span>
+    </div>
+
+    <script>
+        let activeOrders = [];
+        let currentOrder = null;
+        let selectedMethod = 'cash';
+        let history = JSON.parse(localStorage.getItem('pos_history') || '[]');
+
+        function formatMoney(amount) {
+            return amount.toLocaleString('ru-RU') + ' UZS';
+        }
+
+        window.onload = function() {
+            loadSettings();
+            loadOrders();
+            // Автообновление каждые 4 секунды
+            setInterval(loadOrders, 4000);
+        };
+
+        function loadOrders() {
+            activeOrders = JSON.parse(localStorage.getItem('pos_active_orders') || '[]');
+            document.getElementById('ordersCount').innerText = activeOrders.length;
+            renderOrders();
+        }
+
+        function renderOrders() {
+            const grid = document.getElementById('ordersGrid');
+            if (activeOrders.length === 0) {
+                grid.innerHTML = `
+                    <div class="h-64 flex flex-col items-center justify-center text-gray-400 bg-white rounded-3xl border border-dashed border-gray-300 p-6 text-center">
+                        <i class="fa-solid fa-clock-rotate-left text-4xl mb-3 text-gray-300"></i>
+                        <p class="font-bold text-sm text-gray-600">Нет неоплаченных заказов</p>
+                        <p class="text-xs text-gray-400 mt-1">Официант отправит заказ с планшета, и он появится здесь</p>
+                    </div>`;
+                return;
+            }
+
+            grid.innerHTML = activeOrders.map(o => `
+                <div class="bg-white p-4 rounded-3xl shadow-sm border border-gray-200 flex flex-col justify-between space-y-3 hover:shadow-md transition">
+                    <div class="flex justify-between items-start border-b pb-2.5">
+                        <div>
+                            <span class="bg-amber-100 text-amber-800 text-xs px-2.5 py-1 rounded-full font-bold">
+                                🪑 Столик №${o.table}
+                            </span>
+                            <h4 class="font-extrabold text-gray-800 text-base mt-2">Заказ №${o.id}</h4>
+                            <div class="text-[10px] text-gray-400">${o.date}</div>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-xs text-gray-400 block">К оплате:</span>
+                            <span class="text-lg font-black text-blue-600">${formatMoney(o.total)}</span>
+                        </div>
+                    </div>
+
+                    <!-- Список товаров -->
+                    <div class="bg-gray-50 p-2.5 rounded-2xl border border-gray-100 space-y-1 text-xs">
+                        ${o.items.map(i => `
+                            <div class="flex justify-between text-gray-700">
+                                <span>${i.name} × ${i.quantity}</span>
+                                <span class="font-semibold">${formatMoney(i.price * i.quantity)}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <!-- Кнопка приёма оплаты -->
+                    <button onclick="openPaymentModal(${o.id})" class="w-full bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white font-extrabold py-3 rounded-2xl shadow-md transition flex items-center justify-center space-x-2 text-sm">
+                        <i class="fa-solid fa-credit-card"></i>
+                        <span>Принять оплату</span>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function openPaymentModal(orderId) {
+            currentOrder = activeOrders.find(o => o.id === orderId);
+            if (!currentOrder) return;
+
+            document.getElementById('payModalTitle').innerText = `Заказ №${currentOrder.id}`;
+            document.getElementById('payModalSubtitle').innerText = `Столик №${currentOrder.table}`;
+            document.getElementById('payModalTotal').innerText = formatMoney(currentOrder.total);
+
+            // Рендер товаров чека
+            document.getElementById('payModalItems').innerHTML = currentOrder.items.map(i => `
+                <div class="flex justify-between py-0.5">
+                    <span class="text-gray-700 font-medium">${i.name} × ${i.quantity}</span>
+                    <span class="font-bold text-gray-800">${formatMoney(i.price * i.quantity)}</span>
+                </div>
+            `).join('');
+
+            document.getElementById('cashReceivedInput').value = '';
+            document.getElementById('cashChangeAmount').innerText = '0 UZS';
+
+            selectPayMethod('cash');
+            openModal('paymentModal');
+        }
+
+        function selectPayMethod(method) {
+            selectedMethod = method;
+            document.querySelectorAll('.pay-method-btn').forEach(btn => {
+                btn.classList.remove('active', 'bg-emerald-50', 'border-emerald-500', 'text-emerald-700');
+                btn.classList.add('bg-gray-100', 'border-transparent', 'text-gray-600');
+            });
+
+            const activeBtn = document.getElementById(`method${method.charAt(0).toUpperCase() + method.slice(1)}`);
+            activeBtn.classList.add('active', 'bg-emerald-50', 'border-emerald-500', 'text-emerald-700');
+
+            const cashBlock = document.getElementById('cashCalcBlock');
+            if (method === 'cash') {
+                cashBlock.classList.remove('hidden');
+            } else {
+                cashBlock.classList.add('hidden');
+            }
+        }
+
+        function calculateChange() {
+            if (!currentOrder) return;
+            const received = parseFloat(document.getElementById('cashReceivedInput').value) || 0;
+            const change = received - currentOrder.total;
+            const changeEl = document.getElementById('cashChangeAmount');
+
+            if (change >= 0) {
+                changeEl.innerText = formatMoney(change);
+                changeEl.className = 'font-bold text-emerald-600 text-sm';
+            } else {
+                changeEl.innerText = 'Недостаточно';
+                changeEl.className = 'font-bold text-red-500 text-xs';
+            }
+        }
+
+        async function confirmPayment() {
+            if (!currentOrder) return;
+
+            const token = localStorage.getItem('pos_tg_token');
+            const chatId = localStorage.getItem('pos_tg_chat_id');
+            const storeName = localStorage.getItem('pos_store_name') || 'POS Касса';
+
+            const payMethodsText = { cash: '💵 Наличные', card: '💳 Карта', transfer: '📱 Перевод' };
+            const dateStr = new Date().toLocaleString('ru-RU');
+
+            // Формирование Telegram чека
+            let cashMsg = `🧾 *ОПЛАЧЕНО В КАССЕ (Заказ №${currentOrder.id})*\n`;
+            cashMsg += `🏪 *${storeName}*\n`;
+            cashMsg += `🪑 *Столик №${currentOrder.table}*\n`;
+            cashMsg += `📅 _${dateStr}_\n`;
+            cashMsg += `-----------------------------------\n`;
+            currentOrder.items.forEach(item => {
+                cashMsg += `• ${item.name} × ${item.quantity} = *${formatMoney(item.price * item.quantity)}*\n`;
+            });
+            cashMsg += `-----------------------------------\n`;
+            cashMsg += `💰 *ИТОГО: ${formatMoney(currentOrder.total)}*\n`;
+            cashMsg += `💳 Способ оплаты: *${payMethodsText[selectedMethod]}*\n`;
+
+            const btn = document.getElementById('confirmPayBtn');
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>Проведение...</span>`;
+
+            try {
+                if (token && chatId) {
+                    await sendTelegramMessage(token, chatId, cashMsg);
+                }
+
+                // 1. Удаляем из активных заказов
+                activeOrders = activeOrders.filter(o => o.id !== currentOrder.id);
+                localStorage.setItem('pos_active_orders', JSON.stringify(activeOrders));
+
+                // 2. Добавляем в сохраненную историю чеков
+                history = JSON.parse(localStorage.getItem('pos_history') || '[]');
+                history.unshift({
+                    id: currentOrder.id,
+                    table: currentOrder.table,
+                    date: dateStr,
+                    total: currentOrder.total,
+                    items: [...currentOrder.items],
+                    method: payMethodsText[selectedMethod]
+                });
+                localStorage.setItem('pos_history', JSON.stringify(history));
+
+                showToast(`Заказ №${currentOrder.id} успешно оплачен!`, 'success');
+                closeModal('paymentModal');
+                loadOrders();
+            } catch (err) {
+                showToast('Ошибка при отправке чека!', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa-solid fa-check-double text-base"></i> <span>Подтвердить оплату и Чек</span>`;
+            }
+        }
+
+        async function sendTelegramMessage(token, chatId, text) {
+            const url = `https://api.telegram.org/bot${token}/sendMessage`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: 'Markdown' })
+            });
+            const data = await response.json();
+            if (!data.ok) throw new Error(data.description);
+            return data;
+        }
+
+        function saveSettings() {
+            const token = document.getElementById('tgToken').value.trim();
+            const chatId = document.getElementById('tgChatId').value.trim();
+            const storeName = document.getElementById('storeName').value.trim();
+
+            localStorage.setItem('pos_tg_token', token);
+            localStorage.setItem('pos_tg_chat_id', chatId);
+            localStorage.setItem('pos_store_name', storeName);
+
+            showToast('Настройки кассы сохранены!', 'success');
+            closeModal('settingsModal');
+        }
+
+        function loadSettings() {
+            document.getElementById('tgToken').value = localStorage.getItem('pos_tg_token') || '';
+            document.getElementById('tgChatId').value = localStorage.getItem('pos_tg_chat_id') || '';
+            document.getElementById('storeName').value = localStorage.getItem('pos_store_name') || '';
+        }
+
+        function renderShiftReport() {
+            history = JSON.parse(localStorage.getItem('pos_history') || '[]');
+            const totalRevenue = history.reduce((sum, h) => sum + h.total, 0);
+
+            const container = document.getElementById('shiftStatsContent');
+            container.innerHTML = `
+                <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl text-center space-y-1">
+                    <span class="text-xs font-bold text-gray-500 uppercase">Общая выручка:</span>
+                    <div class="text-2xl font-black text-emerald-600">${formatMoney(totalRevenue)}</div>
+                    <div class="text-[10px] text-gray-400">Всего оплачено чеков: ${history.length}</div>
+                </div>
+            `;
+        }
+
+        function openModal(id) {
+            if (id === 'shiftReportModal') renderShiftReport();
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMessage').innerText = message;
+            toast.classList.remove('translate-y-[-150%]');
+            setTimeout(() => toast.classList.add('translate-y-[-150%]'), 2500);
+        }
+    </script>
+</body>
+</html>
